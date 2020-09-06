@@ -1,0 +1,60 @@
+version: "3.8"
+services:
+  web:
+    build: ../..
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - mongo
+      - postgres
+    #   - postgres-migration
+    #   - mongo-migration
+
+  # postgres-migration:
+  #   build: ../..
+  #   depends_on:
+  #     - postgres
+  #   entrypoint: postgres-migration
+  #   command: up
+
+  # mongo-migration:
+  #   build: ../..
+  #   depends_on:
+  #     - postgres
+  #   entrypoint: mongo-migration
+  #   command: up
+
+  redis:
+    image: 'docker.io/bitnami/redis:6.0-debian-10'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    ports:
+      - '6379:6379'
+    volumes:
+      - 'redis_data:/bitnami/redis/data'
+
+  mongo:
+    image: 'docker.io/bitnami/mongodb:4.4-debian-10'
+    ports:
+      - "27017:27017"
+    volumes:
+      - 'mongodb_data:/bitnami/mongodb'
+
+  postgres:
+    image: 'docker.io/bitnami/postgresql:13-debian-10'
+    ports:
+      - '5431:5432'
+    volumes:
+      - 'postgresql_data:/bitnami/postgresql'
+    environment:
+      - 'ALLOW_EMPTY_PASSWORD=yes'
+
+volumes:
+  postgresql_data:
+    driver: local
+  redis_data:
+    driver: local
+  mongodb_data:
+    driver: local
