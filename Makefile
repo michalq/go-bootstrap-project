@@ -1,5 +1,8 @@
 .PHONY: clean
 
+wire:
+	cd ./cmd/api && wire
+
 clean:
 	rm -rf ./pkg/api
 

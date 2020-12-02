@@ -2,75 +2,86 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"net/http"
 
-	"github.com/michalq/go-bootstrap-project/internal/api/formatter"
+	"github.com/michalq/go-bootstrap-project/internal/api-v1/formatter"
+	"github.com/michalq/go-bootstrap-project/internal/api-v1/response"
 	"github.com/michalq/go-bootstrap-project/internal/modules/user"
 	api "github.com/michalq/go-bootstrap-project/pkg/api"
 )
 
 // UsersController control flow for users
 type UsersController struct {
-	ctx             *context.Context
+	ctx             context.Context
 	usersRepository user.Users
-	userFormatter   formatter.UserFormatter
-	userVerifier *user.Verifier
+	userFormatter   *formatter.UserFormatter
+	userVerifier    *user.Verifier
 }
 
-// NewUserController basic contrustor
-func NewUserController(
-	ctx *context.Context,
+// ContextScoperUserController context scoped provider for controller
+type ContextScoperUserController func(context.Context) *UsersController
+
+// NewContextScopedUserController creates context-scoped provider, that can be used in multiple context
+func NewContextScopedUserController(
 	usersRepository user.Users,
-	userFormatter formatter.UserFormatter,
-) *UsersController {
-	return &UsersController(ctx, usersRepository, userFormatter)
+	userFormatter *formatter.UserFormatter,
+	userVerifier *user.Verifier,
+) ContextScoperUserController {
+	return func(ctx context.Context) *UsersController {
+		return &UsersController{ctx, usersRepository, userFormatter, userVerifier}
+	}
 }
 
-type UserControllerProvider interface {
-	(*context.Context) *UsersController
-}
-
-// Details render details page
-func (u *UsersController) Details(userID string) (interface{}, error) {
+// DetailsAction render details page
+func (u *UsersController) DetailsAction(userID string) (*response.Response, error) {
 	user, err := u.usersRepository.FindOneByID(userID)
 	if err != nil {
 		return nil, err
 	}
-	return api.NewResponse(200, u.userFormatter.DomainToAPI(user)), nil
+	return response.NewResponse(http.StatusOK, u.userFormatter.DomainToAPI(user)), nil
 }
 
-// CreateOne creates user
-func (u *UsersController) CreateOne(apiUser *api.User) (interface{}, error) {
-	user := u.userFormatter.APIToDomain(apiUser)
-	if err := u.usersRepository.Save(user); err != nil {
+// CreateAction creates user
+func (u *UsersController) CreateAction(apiUser *api.User) (*response.Response, error) {
+	userModel := u.userFormatter.APIToDomain(apiUser)
+	if _, err := u.usersRepository.Save(userModel); err != nil {
 		return nil, err
 	}
-	return
+	return response.NewResponse(http.StatusCreated, api.UserCreated{Id: userModel.ID}), nil
 }
 
-// Update updates user data
-func (u *UsersController) Update(userID string, apiUser *api.User) (interface{}, error) {
-	user := u.userFormatter.APIToDomain(apiUser)
-	user.ID = userID
-	if err := u.usersRepository.Update(user); err != nil {
+// UpdateAction updates user data
+func (u *UsersController) UpdateAction(userID string, apiUser *api.User) (*response.Response, error) {
+	userModel, err := u.usersRepository.FindOneByID(userID)
+	if err != nil {
 		return nil, err
 	}
-	return
-}
-
-// Verify verify user
-func (u *UsersController) Verify(userID string) (interface{}, error) {
-	user := u.usersRepository.FindOne(userID)
-	if err := u.userVerfier.Verify(apiUser); err != nil {
-		return err
+	if userModel == nil {
+		return nil, errors.New("user not found")
 	}
-	return
+	userModel = u.userFormatter.APIToDomain(apiUser)
+	userModel.ID = userID
+	if err := u.usersRepository.Update(userModel); err != nil {
+		return nil, err
+	}
+	return response.NewResponse(http.StatusNoContent, nil), nil
 }
 
-// List returns users
-func (u *UsersController) List() {
+// VerifyAction verify user
+func (u *UsersController) VerifyAction(userID string) (*response.Response, error) {
+	if _, err := u.userVerifier.FullVerification(userID); err != nil {
+		return nil, err
+	}
+	return response.NewResponse(http.StatusNoContent, nil), nil
+}
+
+// ListAction returns users
+func (u *UsersController) ListAction() (*response.Response, error) {
 	users, err := u.usersRepository.FindAll()
 	if err != nil {
-		return err
+		return nil, err
 	}
-
+	usersFormatted := u.userFormatter.DomainToAPIList(users)
+	return response.NewResponse(http.StatusOK, usersFormatted), nil
 }

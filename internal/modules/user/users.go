@@ -9,7 +9,7 @@ type Users interface {
 	FindAll() ([]*User, error)
 
 	// Save saves user in database
-	Save(*User) error
+	Save(*User) (string, error)
 
 	// Save saves user in database
 	Update(*User) error
